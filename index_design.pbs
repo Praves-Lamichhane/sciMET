@@ -1,0 +1,49 @@
+#!/bin/bash
+#PBS -P DementiaCFDNA
+#PBS -N index_design
+#PBS -l select=1:ncpus=24:mem=32GB
+#PBS -l walltime=05:00:00
+
+# load modules
+module load python/3.5.1
+# module load mod-primer3
+
+# set working directory
+cd /project/RDS-FMH-DementiaCFDNA-RW/Praves/sciTAPS/
+
+# select python directory
+io=/project/RDS-FMH-DementiaCFDNA-RW/Praves/sciTAPS/
+py_files=/project/RDS-FMH-DementiaCFDNA-RW/Praves/git_repo/edittag/bin/
+
+## prepare the input file (this needs python3.x)
+python for_index_input.py ${io}/scimet_oligos_idt_prav_updated.csv ${io}/existing_index_tags.txt
+
+## switch module for edittag (requires 2.7.x)
+module load python/2.7.9
+
+## design, validate and add tags to adapters
+
+## output the file to the same directory. Nane of the file: design_tags.txt
+python ${py_files}/design_edit_metric_tags.py \
+    --tag-length=10 \
+    --edit-distance=3 \
+    --no-polybase \
+    --gc \
+    --multiprocessing \
+    --processors=20 \
+    --comp \
+    --min-and-greater \
+    --output=/project/RDS-FMH-DementiaCFDNA-RW/Praves/sciTAPS/design_tags_rerun.txt
+
+## merge existing_index_tags.txt with design_tags.txt
+cat existing_index_tags.txt design_tags_rerun.txt > for_validation.txt
+
+## run validate_edit_metric_tags
+python ${py_files}/validate_edit_metric_tags.py \
+    --input ${io}/for_validation.txt --all-distances \
+    --verbose > ${io}/tag_validation.txt
+
+python ${py_files}/add_tags_to_adapters.py \
+    --input=${io}/for_validation.txt \
+    --5-prime=CAAGCAGAAGACGGCATACGAGAT \
+    --3-prime=GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCTGAGATGTGTATAAGAGACAG > ${io}/sciTAPS_tags_inserted_final.txt
